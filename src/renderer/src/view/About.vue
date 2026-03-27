@@ -23,7 +23,7 @@
         <p>[Ethereum] 0x9de3cae5047bcd624fe545161ef7022de868b768</p>
         <p>[Solana] 6fxBpA6Y8JgaGeJLPAZ4CwqoRwLbHFqr4qtDwRHLRawa</p>
       </section>
- <section>
+      <section>
         <h3>4. 源码链接</h3>
         <p>https://github.com/bysstudio/by-chrome-app</p>
       </section>
@@ -33,10 +33,11 @@
 </template>
 <script setup>
 //自动适配高度代码
-import { onMounted, onUnmounted,ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
+import { ElMessage } from "element-plus";
 
 const tableHeight = ref(400);
-// 计算表格高度的函数
+
 const calculateTableHeight = () => {
   const header = document.querySelector(".fixed-header");
   const footer = document.querySelector(".fixed-footer");
@@ -103,6 +104,26 @@ p {
   border-left: 4px solid #3498db;
   padding: 1em;
   margin: 1.5em 0;
+}
+
+.test-section {
+  background: #f0f7ff;
+  border: 1px dashed #409eff;
+  padding: 20px;
+  margin: 25px 0;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.test-section h3 {
+  color: #409eff;
+  margin-top: 0;
+}
+
+.test-section p {
+  text-indent: 0;
+  margin-bottom: 15px;
+  color: #606266;
 }
 
 ul {

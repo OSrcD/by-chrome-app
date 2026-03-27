@@ -7,11 +7,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('set-port', (event, portData) => callback(portData))
   },
   invoke: (channel, ...args) => {
-    const allowedChannels = ['common-choose-path']
+    const allowedChannels = ['common-choose-path', 'run-puppeteer-test', 'get-open-windows']
     if (!allowedChannels.includes(channel)) {
       throw new Error(`非法 IPC 通道: ${channel}`)
     }
     return ipcRenderer.invoke(channel, ...args)
+  },
+  // 通用 IPC 事件监听（白名单控制）
+  on: (channel, callback) => {
+    const allowedChannels = ['scraper-log']
+    if (!allowedChannels.includes(channel)) {
+      throw new Error(`非法 IPC 监听通道: ${channel}`)
+    }
+    ipcRenderer.on(channel, (event, data) => callback(data))
   }
 })
 

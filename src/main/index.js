@@ -13,6 +13,7 @@ import groupRouter from "./server/groupApi"; //分组相关操作
 import cors from "cors";
 import * as url from "node:url";
 import logger from "./logger/logger";
+import ScraperManager from "./server/service/scraper/ScraperManager.js";
 
 import WSService from "./server/service/WSService";
 import WindowService from "./server/service/WindowService";
@@ -41,7 +42,7 @@ server.use("/group", groupRouter);
 
 //错误处理中间件
 server.use((err, req, res, next) => {
-  console.error("错误处理中间件",err)
+  console.error("错误处理中间件", err)
   logger.error(err.stack);
   res.status(500).send("Something broke!");
 });
@@ -50,7 +51,7 @@ server.use((err, req, res, next) => {
 // 用异步函数包裹逻辑
 async function getServerPort() {
   //动态
- // return is.dev ? 3000 : await getPort({ port: 3000 });
+  // return is.dev ? 3000 : await getPort({ port: 3000 });
   return 3000
 }
 
@@ -67,7 +68,7 @@ getServerPort().then(port => {
 
 // 获取WS的端口
 async function getWsPort() {
- // return is.dev ? 3001 : await getPort({ port: 3001 });
+  // return is.dev ? 3001 : await getPort({ port: 3001 });
   return 3001
 }
 
@@ -128,6 +129,12 @@ function createWindow() {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow.show();
+    // 监听采集插件的任务详情日志，并透传给 UI
+    ScraperManager.onStepLog = (port, msg, type) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("scraper-log", { port, msg, type });
+      }
+    };
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -148,6 +155,11 @@ function createWindow() {
     });
 
     mainWindow.loadURL(startUrl);
+  }
+
+  // 开发环境下自动打开开发者工具
+  if (is.dev) {
+    mainWindow.webContents.openDevTools();
   }
   if (process.platform !== "darwin") {
     //注册快捷键：Ctrl+Shift+D（Windows）或Command+Shift+D（Mac）
@@ -209,6 +221,26 @@ function createWindow() {
       }
     }
   );
+
+  // 暴露运行 Puppeteer 自动化的接口 (使用封装好的系统服务方式)
+  ipcMain.handle("run-puppeteer-test", async (_, port = 9222) => {
+    // 异步执行演示
+    WindowService.runAutomation(port).then(() => {
+        logger.info(`自动化集成任务成功，端口: ${port}`);
+    }).catch(err => {
+        logger.error(`自动化任务运行出错: ${err.message}`);
+    });
+    
+    return `自动化指令已发送至 WindowService (端口 ${port})`;
+  });
+
+  // 获取所有已打开的浏览器实例及其端口
+  ipcMain.handle("get-open-windows", async () => {
+    // 假设 WindowService 是单例，我们可以通过某种方式获取它
+    // 在这个项目中，WindowService 似乎是在 windowApi 路由或者其他地方使用的。
+    // 我们查看一下 WindowService 的导出方式。
+    return await WindowService.getOpenList();
+  });
 }
 
 function createTray() {
@@ -267,7 +299,7 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   dao.initDatabase();
-  app.on("activate", function() {
+  app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

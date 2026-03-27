@@ -340,6 +340,52 @@ class WindowService {
     }
   }
 
+  /**
+   * 运行自动化脚本 (直接调用集成包)
+   * @param {number} port 目标窗口端口
+   */
+  async runAutomation(port) {
+    logger.info(`[WindowService] 正在接管端口 ${port} 执行自动化操作...`);
+    let browser;
+    try {
+      // 1. 直接连接 (封装好的系统内部调用)
+      browser = await puppeteer.connect({
+        browserURL: `http://${this.HOST}:${port}`,
+        defaultViewport: null
+      });
+
+      const pages = await browser.pages();
+      let page = pages.find(p => !p.url().startsWith('devtools://') && !p.url().startsWith('chrome-extension://'));
+      if (!page) page = pages[0];
+
+      logger.info(`[WindowService] 已连接到页面: ${page.url()}`);
+
+      // 演示逻辑
+      if (port === 9222) {
+        // 主程序操作
+        const spans = await page.$$('span');
+        for (const span of spans) {
+          const text = await page.evaluate(el => el.innerText, span);
+          if (text.includes('代理管理')) {
+            await span.click();
+            await new Promise(r => setTimeout(r, 1000));
+            break;
+          }
+        }
+      } else {
+        // 环境浏览器操作
+        await page.goto('https://www.bing.com', { waitUntil: 'domcontentloaded' });
+      }
+
+      await browser.disconnect();
+      return true;
+    } catch (error) {
+       logger.error(`[WindowService] 自动化操作失败: ${error.message}`);
+       if (browser) await browser.disconnect().catch(() => {});
+       throw error;
+    }
+  }
+
 
   /**
    * 全部关闭

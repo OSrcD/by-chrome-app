@@ -1,11 +1,11 @@
 //express服务器
 import express from "express";
 
-import { parseQuery, resFail, resOk } from "./utlis/resutil";
+import { WindowDB } from "./db/WindowDB.js";
+import { resFail, resOk, parseQuery } from "./utlis/resutil.js";
+import WindowService from "./service/WindowService.js";
 
-
-import { WindowDB } from "./db/WindowDB";
-import WindowService from "./service/WindowService";
+import ScraperManager from "./service/scraper/ScraperManager.js";
 import generateFingerprint from "./utlis/getFingerprint";
 import { readdir } from "fs/promises";
 import { statSync } from "fs";
@@ -14,7 +14,6 @@ import path from "path";
 
 
 const router = express.Router();
-
 const db = new WindowDB();
 
 /**
@@ -325,5 +324,98 @@ router.get("/syncList", async (req, res) => {
   res.send(resOk({ data: list }));
 });
 
+/**
+ * 提取当前页面数据并推送到后端
+ */
+router.post("/scrapeCurrent", async (req, res) => {
+  const { port } = req.body;
+  if (!port) {
+    return res.send(resFail("端口不能为空"));
+  }
+  try {
+    const result = await ScraperManager.scrapeCurrentPage('127.0.0.1', port);
+    if (result.success) {
+      res.send(resOk({ data: result.msg, msg: result.msg }));
+    } else {
+      res.send(resFail(result.msg));
+    }
+  } catch (error) {
+    res.send(resFail(error.message));
+  }
+});
+
+/**
+ * 导航至指定 URL 并执行采集
+ */
+router.post("/scrapeByUrl", async (req, res) => {
+  const { port, url } = req.body;
+  if (!port || !url) {
+    return res.send(resFail("端口与 URL 不能为空"));
+  }
+  try {
+    const result = await ScraperManager.scrapeByUrl('127.0.0.1', port, url);
+    if (result.success) {
+      res.send(resOk({ data: result.data, msg: result.msg }));
+    } else {
+      res.send(resFail(result.msg));
+    }
+  } catch (error) {
+    res.send(resFail(error.message));
+  }
+});
+
+/**
+ * 采集任务控制 (暂停/运行/停止)
+ */
+router.post("/controlTask", (req, res) => {
+  const { port, status } = req.body;
+  if (!port || !status) {
+    return res.send(resFail("端口与状态参数不能为空"));
+  }
+  ScraperManager.setTaskStatus(port, status);
+  res.send(resOk({ msg: `任务状态已切换为: ${status}` }));
+});
+
+/**
+ * 基于关键词进行搜索并执行采集
+ */
+router.post("/scrapeBySearch", async (req, res) => {
+  const { port, platform, keyword, filters } = req.body;
+  if (!port || !platform || !keyword) {
+    return res.send(resFail("端口、平台、关键词不能为空"));
+  }
+  try {
+    const result = await ScraperManager.scrapeBySearch('127.0.0.1', port, platform, keyword, filters);
+    if (result.success) {
+      res.send(resOk({ data: result.data, msg: result.msg }));
+    } else {
+      res.send(resFail(result.msg));
+    }
+  } catch (error) {
+    res.send(resFail(error.message));
+  }
+});
+
+/**
+ * 批量刷新视频链接（Electron采集器内部调用，查询后端待刷新帖子并逐条重抓）
+ */
+router.post("/refreshVideos", async (req, res) => {
+  const { port } = req.body;
+  if (!port) {
+    return res.send(resFail("端口不能为空"));
+  }
+  try {
+    const result = await ScraperManager.batchRefreshVideos('127.0.0.1', port, (msg) => {
+      ScraperManager.log(port, `[视频刷新] ${msg}`, 'info');
+    });
+    if (result.success) {
+      res.send(resOk({ data: result, msg: result.msg }));
+    } else {
+      res.send(resFail(result.msg));
+    }
+  } catch (error) {
+    res.send(resFail(error.message));
+  }
+});
 
 export default router;

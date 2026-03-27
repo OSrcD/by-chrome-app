@@ -66,6 +66,22 @@ const routes = [
     meta: {
       keepAlive: true // 需要缓存的页面
     }
+  },
+  {
+    path: '/scraper',
+    name: 'scraper',
+    component: () => import('../view/Scraper.vue'),
+    meta: {
+      keepAlive: false
+    }
+  },
+  {
+    path: '/testing-center',
+    name: 'TestingCenter',
+    component: () => import('../view/TestingCenter.vue'),
+    meta: {
+      keepAlive: false
+    }
   }
 ]
 export const router = createRouter({

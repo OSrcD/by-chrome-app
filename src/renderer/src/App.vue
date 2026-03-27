@@ -48,6 +48,22 @@
               <span style="font-weight: bold">关于软件</span>
             </template>
           </el-menu-item>
+          <el-menu-item index="6">
+            <template #default>
+              <el-icon>
+                <List />
+              </el-icon>
+              <span style="font-weight: bold">数据采集</span>
+            </template>
+          </el-menu-item>
+          <el-menu-item index="7">
+            <template #default>
+              <el-icon>
+                <Connection />
+              </el-icon>
+              <span style="font-weight: bold">测试中心</span>
+            </template>
+          </el-menu-item>
 
         </el-menu>
         <div class="fixed-div">
@@ -87,15 +103,13 @@
 
 </template>
 <script setup>
-import { RouterView, useRouter } from "vue-router";
-
-const router = useRouter();
-const activeIndex = ref("1");
 import { ref, onMounted, onBeforeUnmount } from "vue";
+import { RouterView, useRouter } from "vue-router";
 import { AestheticFluidBg } from "./utils/AestheticFluidBg.module.js";
 import axios from "axios";
 
-
+const router = useRouter();
+const activeIndex = ref("1");
 const netInfo = ref({});
 
 // let colorbg = new AestheticFluidBg({
@@ -122,6 +136,7 @@ onMounted(() => {
 
 //路由切换
 const handleSelect = (index, indexPath) => {
+  activeIndex.value = index;
   switch (index) {
     case "1":
       router.push("/");
@@ -137,6 +152,12 @@ const handleSelect = (index, indexPath) => {
       break;
     case "5":
       router.push("/about");
+      break;
+    case "6":
+      router.push("/scraper");
+      break;
+    case "7":
+      router.push("/testing-center");
       break;
     default:
       break;
