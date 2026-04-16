@@ -53,7 +53,15 @@
               <el-icon>
                 <List />
               </el-icon>
-              <span style="font-weight: bold">数据采集</span>
+              <span style="font-weight: bold">素材采集</span>
+            </template>
+          </el-menu-item>
+          <el-menu-item index="8">
+            <template #default>
+              <el-icon>
+                <Collection />
+              </el-icon>
+              <span style="font-weight: bold">复刻素材</span>
             </template>
           </el-menu-item>
           <el-menu-item index="7">
@@ -105,6 +113,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { RouterView, useRouter } from "vue-router";
+import { ChromeFilled, SwitchFilled, Platform, Tools, QuestionFilled, List, Connection, Collection, Refresh } from "@element-plus/icons-vue";
 import { AestheticFluidBg } from "./utils/AestheticFluidBg.module.js";
 import axios from "axios";
 
@@ -158,6 +167,9 @@ const handleSelect = (index, indexPath) => {
       break;
     case "7":
       router.push("/testing-center");
+      break;
+    case "8":
+      router.push("/library");
       break;
     default:
       break;

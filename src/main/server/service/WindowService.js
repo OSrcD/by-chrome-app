@@ -50,6 +50,7 @@ const SM_CYFULLSCREEN = 17;
 const VK_UP = 38;
 const VK_DOWN = 40;
 const WM_CHAR = 258; // 用于字符输入
+const SW_MAXIMIZE = 3; // 最大化显示
 class WindowService {
 
   constructor() {
@@ -384,6 +385,28 @@ class WindowService {
        if (browser) await browser.disconnect().catch(() => {});
        throw error;
     }
+  }
+
+  /**
+   * 聚焦特定窗口
+   * @param {number} port 目标窗口端口
+   */
+  async focusWindow(port) {
+    if (this.windows.size === 0) return false;
+    const targetPort = Number(port);
+    for (const [, item] of this.windows) {
+      if (Number(item.chromePort) === targetPort) {
+        if (item.hwnd) {
+          logger.info(`[WindowService] 正在由任务系统聚焦并最大化窗口: ${item.name} (Port: ${port}, HWND: ${item.hwnd})`);
+          // 首先使用 SW_RESTORE 确保窗口可见
+          windowApi.showWindow(item.hwnd, SW_RESTORE);
+          // 接着触发 SW_MAXIMIZE 执行最大化
+          windowApi.showWindow(item.hwnd, SW_MAXIMIZE);
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
 

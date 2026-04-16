@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer';
 import axios from 'axios';
 import logger from '../../../logger/logger.js';
 import XiaohongshuScraper from './plugins/XiaohongshuScraper';
+import ScraperAutomation from './ScraperAutomation.js';
 
 /**
  * 平台字典映射
@@ -17,7 +18,7 @@ const PLATFORM_MAP = {
 };
 
 /**
- * 数据采集器管理分发类
+ * 素材采集器管理分发类
  */
 class ScraperManager {
     constructor() {
@@ -25,13 +26,14 @@ class ScraperManager {
         this.plugins = [
             new XiaohongshuScraper()
         ];
-        
+
         // 后端写入接口地址
-        this.BACKEND_API_URL = 'http://localhost:8080/business/scraper/save';
-        
+        // this.BACKEND_API_URL = 'http://localhost:8080/business/scraper/save';
+        this.BACKEND_API_URL = 'http://admin.ruoyivueplus.wulynk.com:8700/prod-api/business/scraper/save';
+
         // 维护各个端口的任务状态: running | paused | stopped
-        this.taskStates = {}; 
-        
+        this.taskStates = {};
+
         // 外部日志回调 (用于 IPC 推送)
         this.onStepLog = null;
     }
@@ -70,14 +72,14 @@ class ScraperManager {
         if (this.taskStates[port] === 'stopped') {
             return false;
         }
-        
+
         // 2. 如果已暂停，进入自旋等待
         while (this.taskStates[port] === 'paused') {
             await new Promise(r => setTimeout(r, 1000));
             // 如果在暂停期间被切到了停止，则跳出返回
             if (this.taskStates[port] === 'stopped') return false;
         }
-        
+
         return true;
     }
 
@@ -107,7 +109,7 @@ class ScraperManager {
         }
 
         this.log(port, `[方案规划] 搜索路径构造成功: ${searchUrl.substring(0, 50)}...`, 'success');
-        
+
         return this.internalScrape(host, port, {
             targetUrl: searchUrl,
             filters: filters,
@@ -141,11 +143,11 @@ class ScraperManager {
      */
     async internalScrape(host, port, options = {}) {
         const { targetUrl, filters, plugin: providedPlugin } = options;
-        this.log(port, `[系统接管] 正在启动自动化数据采集与提取引擎...`, 'primary');
-        
+        this.log(port, `[系统接管] 正在启动自动化素材采集与提取引擎...`, 'primary');
+
         // 初始化状态为运行中
         this.taskStates[port] = 'running';
-        
+
         // 快捷日志闭包：供插件内部调用
         const pluginLog = (msg, type) => this.log(port, msg, type);
 
@@ -189,17 +191,24 @@ class ScraperManager {
 
             // 定义成功的统计
             let stats = { success: 0, skip: 0, total: 0 };
-            
+
             // 定义检查点函数供插件内部调用
             const checkControl = async () => await this.checkTaskControl(port);
-            
+
             // 定义单条采集结果的回调处理 (实时入库 + 实时日志)
             const onItemScraped = async (item) => {
                 if (!item || !item.postId) return;
-                
+
                 stats.total++;
                 this.log(port, `实时采集到第 ${stats.total} 条: [${item.title?.substring(0, 15) || '无标题'}]`, 'success');
-                
+
+                // ---- 新增：采集时媒体资源同步至后端 (转 PNG + 托管) ----
+                try {
+                    await this._transformMediaFiles(item, page, pluginLog);
+                } catch (e) {
+                    this.log(port, `媒体同步失败，将退避使用原链接: ${e.message}`, 'warning');
+                }
+
                 const pushMsg = await this.pushToBackend(item).catch(err => `推送异常: ${err.message}`);
                 // 根据后端返回判断重复
                 if (pushMsg.includes('重复') || pushMsg.includes('已存在')) {
@@ -211,24 +220,24 @@ class ScraperManager {
             };
 
             // 核心解析 (将控制信号、采集回调和日志回调全部透传)
-            await plugin.extractData(browser, page, { 
-                checkControl, 
+            await plugin.extractData(browser, page, {
+                checkControl,
                 onItemScraped,
                 checkExisting: (ids) => this.checkExistingIds(plugin.platform, ids),
                 filters: filters,
-                log: pluginLog 
+                log: pluginLog
             });
 
             await browser.disconnect();
-            
+
             const finalMsg = `采集任务整体作业完成！ 共发现 ${stats.total} 条，成功入库 ${stats.success} 条，跳过 ${stats.skip} 条重复。`;
             this.log(port, finalMsg, 'primary');
             return { success: true, data: { stats }, msg: finalMsg };
 
         } catch (error) {
             this.log(port, `任务执行异常: ${error.message}`, 'error');
-            if (browser) await browser.disconnect().catch(() => {});
-            return { success: false, msg: `采集发生异常: ${error.message}` };
+            if (browser) await browser.disconnect().catch(() => { });
+            return { success: false, msg: `素材采集发生异常: ${error.message}` };
         } finally {
             // 任务结束，彻底清理状态
             delete this.taskStates[port];
@@ -252,7 +261,7 @@ class ScraperManager {
             return [];
         }
     }
- 
+
     /**
      * 将采集的数据推送到 RuoYi-Vue-Plus 后端保存
      * @param {Object} data 
@@ -282,7 +291,7 @@ class ScraperManager {
      */
     async batchRefreshVideos(host, port, logFn) {
         const log = logFn || ((msg) => logger.info(`[VideoRefresh] ${msg}`));
-        
+
         // 1. 从后端查询所有待刷新的帖子
         log('正在查询待刷新视频的帖子...');
         let pendingPosts = [];
@@ -318,7 +327,7 @@ class ScraperManager {
                 const newPage = await browser.newPage();
                 try {
                     await newPage.goto(post.sourceUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-                    await newPage.waitForSelector('.note-container', { timeout: 8000 }).catch(() => {});
+                    await newPage.waitForSelector('.note-container', { timeout: 8000 }).catch(() => { });
 
                     const mediaData = await newPage.evaluate(() => {
                         const images = [];
@@ -356,12 +365,22 @@ class ScraperManager {
                                                 });
                                             }
                                         }
+                                        // 排序：分辨率优先 > 码率优先
+                                        if (videos.length > 0) {
+                                            videos.sort((a, b) => {
+                                                const areaA = a.width * a.height;
+                                                const areaB = b.width * b.height;
+                                                if (areaB !== areaA) return areaB - areaA;
+                                                return b.bitrate - a.bitrate;
+                                            });
+                                        }
                                     }
                                     break;
                                 }
                             }
                         } catch (e) { /* ignore */ }
-                        return { images, videos };
+                        const videoUrl = videos.length > 0 ? videos[0].url : '';
+                        return { images, videos, videoUrl };
                     });
 
                     // 回传到后端 (图片+视频一起更新)
@@ -370,7 +389,8 @@ class ScraperManager {
                         await axios.put(updateUrl, {
                             scraperId: post.scraperId,
                             images: JSON.stringify(mediaData.images),
-                            videos: JSON.stringify(mediaData.videos)
+                            videos: JSON.stringify(mediaData.videos),
+                            videoUrl: mediaData.videoUrl
                         });
                         refreshed++;
                         log(`✅ [${i + 1}] 成功刷新 ${mediaData.images.length} 张图片, ${mediaData.videos.length} 条视频流`);
@@ -380,7 +400,7 @@ class ScraperManager {
                 } catch (e) {
                     log(`❌ [${i + 1}] 刷新失败: ${e.message}`);
                 } finally {
-                    await newPage.close().catch(() => {});
+                    await newPage.close().catch(() => { });
                 }
                 // 防风控
                 await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
@@ -388,13 +408,59 @@ class ScraperManager {
 
             await browser.disconnect();
         } catch (error) {
-            if (browser) await browser.disconnect().catch(() => {});
+            if (browser) await browser.disconnect().catch(() => { });
             log(`刷新任务异常: ${error.message}`);
             return { success: false, msg: error.message, refreshed };
         }
 
         log(`视频链接刷新完成！成功刷新 ${refreshed}/${pendingPosts.length} 条。`);
         return { success: true, msg: `成功刷新 ${refreshed} 条`, refreshed };
+    }
+    /**
+     * 实现用户需求：采集时同步媒体到后端 (转 PNG + 托管)
+     */
+    async _transformMediaFiles(item, page, log) {
+        // 1. 处理图片 (转 PNG)
+        if (item.images) {
+            try {
+                const images = JSON.parse(item.images);
+                for (let i = 0; i < images.length; i++) {
+                    const img = images[i];
+                    const rawUrl = img.urlDefault || img.url || (typeof img === 'string' ? img : '');
+                    if (rawUrl && rawUrl.startsWith('http')) {
+                        log(`正在同步第 ${i + 1} 张图片并转 PNG 至后端...`);
+                        let localPath = await ScraperAutomation.downloadResource(rawUrl, 'scrape_img', log, page);
+                        // 调用 restyle 的标准化逻辑：统一 PNG
+                        localPath = await ScraperAutomation.standardizeImage(localPath, log);
+                        const ossUrl = await ScraperAutomation.uploadToOSS(localPath);
+                        images[i].urlDefault = ossUrl;
+                        images[i].urlPre = ossUrl;
+                    }
+                }
+                item.images = JSON.stringify(images);
+            } catch (e) { log(`图片流同步异常: ${e.message}`, 'error'); }
+        }
+
+        // 2. 处理视频 (托管高清版)
+        if (item.videoUrl || item.videos) {
+            try {
+                const videos = JSON.parse(item.videos || '[]');
+                const targetUrl = item.videoUrl || (videos.length > 0 ? videos[0].url : '');
+
+                if (targetUrl && targetUrl.startsWith('http')) {
+                    log(`正在同步最高画质视频素材至后端托管服务 (无水印原片)...`);
+                    let localPath = await ScraperAutomation.downloadResource(targetUrl, 'scrape_vid', log, page);
+                    const ossUrl = await ScraperAutomation.uploadToOSS(localPath);
+
+                    // 更新所有视频流中的链接为 OSS 托管链接
+                    if (videos.length > 0) {
+                        videos.forEach(v => v.url = ossUrl);
+                        item.videos = JSON.stringify(videos);
+                    }
+                    item.videoUrl = ossUrl;
+                }
+            } catch (e) { log(`视频流同步异常: ${e.message}`, 'error'); }
+        }
     }
 }
 

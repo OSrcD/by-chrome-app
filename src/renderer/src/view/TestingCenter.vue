@@ -67,16 +67,63 @@
           </div>
         </el-tab-pane>
 
-        <!-- 标签页 2：账号风控测试 (预留) -->
-        <el-tab-pane name="account" disabled>
+        <!-- 标签页 2：工作流与资源下载测试 -->
+        <el-tab-pane name="workflow">
           <template #label>
             <span class="tab-label">
-              <el-icon><User /></el-icon> 账号风控验证
+              <el-icon><VideoPlay /></el-icon> 自动化资源测试
             </span>
           </template>
+          
+          <div class="tab-content">
+            <el-form :inline="true" class="test-form">
+              <el-form-item label="资源 URL">
+                <el-input v-model="workflowForm.url" placeholder="输入视频下载链接 (Google/blob)" style="width: 400px" clearable />
+              </el-form-item>
+              <el-form-item label="调试环境">
+                <el-select v-model="workflowForm.port" placeholder="选择环境" style="width: 140px">
+                  <el-option v-for="win in openWindows" :key="win.chromePort" :label="win.name" :value="win.chromePort" />
+                </el-select>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="success" :loading="workflowLoading" @click="runVideoDownloadTest">测试视频下载</el-button>
+                <el-button :icon="Refresh" circle @click="refreshWindows" />
+              </el-form-item>
+            </el-form>
+
+            <div class="test-guide" v-if="!workflowResult">
+              <el-alert title="测试说明" type="info" show-icon :closable="false">
+                此功能用于独立验证 <b>Gemini 视频下载</b> 的稳定性。您可以从网页控制台手动复制一个视频 URL（包含 blob: 或 contribution.usercontent 关键字）进行单体测试。
+              </el-alert>
+            </div>
+
+            <el-row :gutter="20" class="results-row" v-if="workflowResult">
+              <el-col :span="24">
+                <el-card shadow="never" class="result-card">
+                  <template #header>
+                    <div class="card-header">
+                      <span>下载测试结果</span>
+                      <el-tag :type="workflowResult.success ? 'success' : 'danger'">
+                        {{ workflowResult.success ? 'Success' : 'Failed' }}
+                      </el-tag>
+                    </div>
+                  </template>
+                  <div class="result-info">
+                    <p v-if="workflowResult.success" class="path"><b>本地保存绝对路径:</b><br/> {{ workflowResult.path }}</p>
+                    <p v-else class="error"><b>错误堆栈:</b><br/> {{ workflowResult.error }}</p>
+                  </div>
+                </el-card>
+              </el-col>
+            </el-row>
+
+            <div class="workflow-logs">
+              <div class="log-header">测试详情轨迹</div>
+              <pre class="log-body">{{ workflowLogs || '等待运行...' }}</pre>
+            </div>
+          </div>
         </el-tab-pane>
 
-        <!-- 标签页 3：接口连通性测试 (预留) -->
+        <!-- 标签页 3：账号风控测试 (预留) -->
         <el-tab-pane name="api">
           <template #label>
             <span class="tab-label">
@@ -96,7 +143,7 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Refresh, Cpu, User, Link } from '@element-plus/icons-vue';
+import { Refresh, Cpu, User, Link, VideoPlay } from '@element-plus/icons-vue';
 
 const activeTab = ref('scraper');
 const openWindows = ref([]);
@@ -110,17 +157,58 @@ const scraperForm = reactive({
 const scraperResults = ref([]);
 const scraperLogs = ref('');
 
+// ---------------- 工作流测试相关 ----------------
+const workflowForm = reactive({
+  url: '',
+  port: null
+});
+const workflowLoading = ref(false);
+const workflowResult = ref(null);
+const workflowLogs = ref('');
+
 const refreshWindows = async () => {
   try {
     const list = await window.electronAPI.invoke('get-open-windows');
     openWindows.value = list;
-    if (list.length > 0 && !scraperForm.port) {
-      scraperForm.port = list[0].chromePort;
+    if (list.length > 0) {
+      if (!scraperForm.port) scraperForm.port = list[0].chromePort;
+      if (!workflowForm.port) workflowForm.port = list[0].chromePort;
     }
   } catch (e) {
     ElMessage.error("环境加载失败");
   }
 };
+
+const runVideoDownloadTest = async () => {
+  if (!workflowForm.url) return ElMessage.warning("请提供视频测试 URL");
+  if (!workflowForm.port) return ElMessage.warning("请选择活跃的调试环境");
+
+  workflowLoading.value = true;
+  workflowResult.value = null;
+  workflowLogs.value = `[${new Date().toLocaleTimeString()}] 启动视频下载单体测试...\nURL: ${workflowForm.url}\nEnv Port: ${workflowForm.port}\n---`;
+
+  try {
+    const res = await window.electronAPI.invoke('test-video-download', {
+      url: workflowForm.url,
+      port: workflowForm.port
+    });
+
+    workflowResult.value = res;
+    if (res.success) {
+      workflowLogs.value += `\n[Success] 提取成功!\n保存路径: ${res.path}`;
+      ElMessage.success("资源下载测试成功");
+    } else {
+      workflowLogs.value += `\n[Failed] 提取异常:\n${res.error}`;
+      ElMessage.error("资源下载测试失败");
+    }
+  } catch (e) {
+    workflowLogs.value += `\n[Fatal] IPC 通讯失败: ${e.message}`;
+    ElMessage.error("IPC 通讯异常");
+  } finally {
+    workflowLoading.value = false;
+  }
+};
+// ----------------------------------------------
 
 const runScraperTest = async () => {
   if (!scraperForm.url) return ElMessage.warning("请输入待测 URL");
@@ -257,5 +345,39 @@ onMounted(refreshWindows);
   justify-content: center; 
   align-items: center; 
   height: 300px;
+}
+
+.test-guide { margin-top: 20px; }
+
+.result-card { margin-top: 15px; border-radius: 8px; border-left: 5px solid #67c23a; }
+.card-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+.result-info { font-family: monospace; font-size: 13px; line-height: 1.6; }
+.path { color: #409eff; word-break: break-all; }
+.error { color: #f56c6c; }
+
+.workflow-logs {
+  margin-top: 20px;
+  background: #000;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: calc(100vh - 450px);
+}
+.log-header {
+  background: #222;
+  padding: 8px 15px;
+  color: #aaa;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.log-body {
+  padding: 12px;
+  color: #0c0;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  margin: 0;
+  overflow: auto;
+  flex: 1;
 }
 </style>

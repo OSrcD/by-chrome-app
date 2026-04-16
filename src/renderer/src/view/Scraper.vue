@@ -4,8 +4,8 @@
       <div class="hub-title glass-panel">
         <el-icon class="title-icon"><Monitor /></el-icon>
         <div class="text-group">
-          <h2>数据自动化采集中心 (Scraper Hub)</h2>
-          <p>多平台、多维度、高并发的业务数据采集与处理引擎。</p>
+          <h2>素材自动化采集中心 (Scraper Hub)</h2>
+          <p>多平台、多维度、高并发的业务素材采集与处理引擎。</p>
         </div>
       </div>
     </el-header>

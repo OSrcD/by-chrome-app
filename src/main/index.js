@@ -14,6 +14,7 @@ import cors from "cors";
 import * as url from "node:url";
 import logger from "./logger/logger";
 import ScraperManager from "./server/service/scraper/ScraperManager.js";
+import ScraperAutomation from "./server/service/scraper/ScraperAutomation.js";
 
 import WSService from "./server/service/WSService";
 import WindowService from "./server/service/WindowService";
@@ -240,6 +241,74 @@ function createWindow() {
     // 在这个项目中，WindowService 似乎是在 windowApi 路由或者其他地方使用的。
     // 我们查看一下 WindowService 的导出方式。
     return await WindowService.getOpenList();
+  });
+
+  // 一键AI复刻指令
+  ipcMain.handle("run-gemini-restyle", async (_, { post, templates, port, customPrompt, extraMaterials }) => {
+    try {
+        const updateUI = (msg) => {
+            mainWindow.webContents.send('scraper-log', { scraperId: post.scraperId, msg });
+        };
+        const result = await ScraperAutomation.executeFullRestyle(post, templates, port, updateUI, { customPrompt, extraMaterials });
+        return { success: true, versions: result.versions };
+    } catch (error) {
+        logger.error(`[Main] Gemini Restyle Error: ${error.message}`);
+        return { success: false, error: error.message };
+    }
+  });
+
+  // A. 独立文案重写
+  ipcMain.handle("run-gemini-rewrite-text", async (_, { post, templates, port }) => {
+    try {
+        const updateUI = (msg) => { mainWindow.webContents.send('scraper-log', { scraperId: post.scraperId, msg }); };
+        const result = await ScraperAutomation.executeRewriteText(post, templates, port, updateUI);
+        return { success: true, versions: result.versions };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+  });
+
+  // B. 独立图片复刻
+  ipcMain.handle("run-gemini-restyle-image", async (_, { post, vidx, iidx, templates, port, customPrompt, sourceUrl, sourceMode, extraMaterials }) => {
+    try {
+        const updateUI = (msg) => { mainWindow.webContents.send('scraper-log', { scraperId: post.scraperId, msg }); };
+        const result = await ScraperAutomation.executeRestyleImage(post, vidx, iidx, templates, port, updateUI, { customPrompt, sourceUrl, sourceMode, extraMaterials });
+        return { success: true, versions: result.versions };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+  });
+
+  // C. 独立视频复刻
+  ipcMain.handle("run-gemini-restyle-video", async (_, { post, vidx, templates, port, customPrompt, extraMaterials }) => {
+    try {
+        const updateUI = (msg) => { mainWindow.webContents.send('scraper-log', { scraperId: post.scraperId, msg }); };
+        // 视频复刻暂时仅支持提示词补充
+        const result = await ScraperAutomation.executeRestyleVideo(post, vidx, templates, port, updateUI, { customPrompt, extraMaterials });
+        return { success: true, versions: result.versions };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+  });
+
+  // D. 撤回操作 (Undo)
+  ipcMain.handle("run-gemini-undo", async (_, { post, vidx, type, iidx }) => {
+    try {
+        const result = await ScraperAutomation.executeUndoRestyle(post, vidx, type, iidx);
+        return { success: true, versions: result.versions };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+  });
+
+  // 视频下载逻辑测试
+  ipcMain.handle("test-video-download", async (_, { url, port }) => {
+    try {
+        const path = await ScraperAutomation.testVideoDownload(url, port);
+        return { success: true, path };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
   });
 }
 

@@ -82,6 +82,14 @@ const routes = [
     meta: {
       keepAlive: false
     }
+  },
+  {
+    path: '/library',
+    name: 'ScraperLibrary',
+    component: () => import('../view/ScraperLibrary.vue'),
+    meta: {
+      keepAlive: true // 采集库通常需要缓存
+    }
   }
 ]
 export const router = createRouter({

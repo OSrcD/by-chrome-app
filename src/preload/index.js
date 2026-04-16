@@ -7,7 +7,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('set-port', (event, portData) => callback(portData))
   },
   invoke: (channel, ...args) => {
-    const allowedChannels = ['common-choose-path', 'run-puppeteer-test', 'get-open-windows']
+    const allowedChannels = [
+      'common-choose-path', 
+      'run-puppeteer-test', 
+      'get-open-windows', 
+      'run-gemini-restyle',
+      'run-gemini-rewrite-text',
+      'run-gemini-restyle-image',
+      'run-gemini-restyle-video',
+      'run-gemini-undo',
+      'test-video-download'
+    ]
     if (!allowedChannels.includes(channel)) {
       throw new Error(`非法 IPC 通道: ${channel}`)
     }

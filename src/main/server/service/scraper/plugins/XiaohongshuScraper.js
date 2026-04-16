@@ -285,8 +285,9 @@ export default class XiaohongshuScraper {
                 });
             }
 
-            // ===== 视频解析 (多分辨率真实直链) =====
+            // ===== 视频解析 (多分辨率真实直链，自动筛选最高画质 & 无水印) =====
             const videos = [];
+            let videoUrl = '';
             try {
                 const state = window.__INITIAL_STATE__;
                 if (state && state.note && state.note.noteDetailMap) {
@@ -315,7 +316,19 @@ export default class XiaohongshuScraper {
                                     });
                                 }
                             }
-                            break; // 只取当前笔记的视频
+                            
+                            // 核心：执行最高分辨率排序逻辑 (分辨率优先 > 码率优先)
+                            if (videos.length > 0) {
+                                videos.sort((a, b) => {
+                                    const areaA = a.width * a.height;
+                                    const areaB = b.width * b.height;
+                                    if (areaB !== areaA) return areaB - areaA;
+                                    return b.bitrate - a.bitrate;
+                                });
+                                // 提取排在首位的最高画质
+                                videoUrl = videos[0].url;
+                            }
+                            break; 
                         }
                     }
                 }
@@ -323,11 +336,12 @@ export default class XiaohongshuScraper {
                 // __INITIAL_STATE__ 解析失败，降级到 DOM 提取
                 const v = document.querySelector('video');
                 if (v && v.src && !v.src.startsWith('blob:')) {
+                    videoUrl = v.src;
                     videos.push({ codec: 'unknown', quality: 'unknown', width: 0, height: 0, url: v.src, backupUrl: '' });
                 }
             }
 
-            return { postId, title, content, author, sourceUrl: url, images: JSON.stringify(images), videos: JSON.stringify(videos) };
+            return { postId, title, content, author, sourceUrl: url, images: JSON.stringify(images), videos: JSON.stringify(videos), videoUrl };
         });
 
         if (!data) return null;
