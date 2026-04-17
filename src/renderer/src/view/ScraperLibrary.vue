@@ -10,6 +10,16 @@
           </div>
         </div>
         <div class="filter-group">
+          <!-- 自动化引擎开关 (新增) -->
+          <el-button
+            :type="pollerStatus.isPolling ? 'success' : 'info'"
+            :icon="pollerStatus.isPolling ? 'VideoCamera' : 'Mute'"
+            @click="togglePoller"
+            style="margin-right: 15px;"
+          >
+            {{ pollerStatus.isPolling ? '云端队列监听: 运行中' : '云端队列监听: 已停止' }}
+          </el-button>
+
           <el-input v-model="queryParams.keyword" placeholder="搜原素材..." clearable @keyup.enter="handleQuery" style="width: 200px" />
           <el-button type="primary" @click="handleQuery">刷新大板</el-button>
         </div>
@@ -267,13 +277,13 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { Film, VideoPlay, Picture, Delete, CopyDocument, Refresh, CirclePlus, Download, MagicStick, Monitor, QuestionFilled, RefreshLeft, Check } from '@element-plus/icons-vue';
+import { Film, VideoPlay, Picture, Delete, CopyDocument, Refresh, CirclePlus, Download, MagicStick, Monitor, QuestionFilled, RefreshLeft, Check, VideoCamera, Mute } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import axios from 'axios';
 import { useScraperTask } from '../hooks/useScraperTask';
 
-// const BACKEND_URL = 'http://localhost:8080/business';
-const BACKEND_URL = 'http://admin.ruoyivueplus.wulynk.com:8700/prod-api/business'
+const BACKEND_URL = 'http://localhost:8080/business';
+// const BACKEND_URL = 'http://admin.ruoyivueplus.wulynk.com:8700/prod-api/business'
 const loading = ref(false);
 const total = ref(0);
 const postList = ref([]);
@@ -293,7 +303,54 @@ if (window.electronAPI && window.electronAPI.on) {
        restyleStatus[data.scraperId] = { ...restyleStatus[data.scraperId], msg: data.msg };
     }
   });
+  window.electronAPI.on('video-reproduce-log', (data) => {
+      // 在这里可以用一个小弹窗或者顶部 Notification 来提示自动化状态，或者写到控制台
+      console.log(`[VideoPoller] ${data.msg}`);
+      if (data.type === 'error') {
+          ElMessage.error(data.msg);
+      } else if (data.type === 'success') {
+          ElMessage.success(data.msg);
+      }
+  });
 }
+
+// 轮询器状态
+const pollerStatus = reactive({ isPolling: false });
+
+const getPollerStatus = async () => {
+    if (window.electronAPI) {
+        const res = await window.electronAPI.invoke("video-reproduce-status");
+        if (res) pollerStatus.isPolling = res.isPolling;
+    }
+};
+
+const togglePoller = async () => {
+    // 弹窗选择端口（可以默认取 active environment）
+    if (!pollerStatus.isPolling) {
+        if (!openWindows.value || openWindows.value.length === 0) {
+            refreshOpenList();
+            ElMessage.warning('正在拉取活跃浏览器环境，请稍后再试或先启动环境。');
+            return;
+        }
+        // 简单处理：取第一个端口。如果多端口最好开个 Dialog
+        const port = openWindows.value[0].chromePort;
+        const res = await window.electronAPI.invoke("video-reproduce-start", { port });
+        if (res && res.success) {
+            pollerStatus.isPolling = true;
+            ElMessage.success(`已开启云端队列轮询，绑定端口: ${port}`);
+        } else {
+            ElMessage.error('开启轮询失败: ' + (res ? res.error : ''));
+        }
+    } else {
+        const res = await window.electronAPI.invoke("video-reproduce-stop");
+        if (res && res.success) {
+            pollerStatus.isPolling = false;
+            ElMessage.info('已停止云端队列轮询');
+        } else {
+            ElMessage.error('停止轮询失败 ' + (res ? res.error : ''));
+        }
+    }
+};
 
 const { openWindows, loadingList, refreshOpenList } = useScraperTask();
 
@@ -465,8 +522,8 @@ const confirmRestyle = async () => {
   // 1. 获取所有需要的提示词模板
   try {
     restyleStatus[post.scraperId] = { loading: true, msg: '获取模板中...' };
-    // const res = await axios.get('http://localhost:8080/business/promptTemplate/list', { params: { pageSize: 100 } });
-    const res = await axios.get('http://admin.ruoyivueplus.wulynk.com:8700/prod-api/business/promptTemplate/list', { params: { pageSize: 100 } });
+    const res = await axios.get('http://localhost:8080/business/promptTemplate/list', { params: { pageSize: 100 } });
+    // const res = await axios.get('http://admin.ruoyivueplus.wulynk.com:8700/prod-api/business/promptTemplate/list', { params: { pageSize: 100 } });
 
     const templateList = res.data.rows || res.data.data;
     const findTemplate = (type) => templateList.find(t => t.templateType === type)?.template;
@@ -615,7 +672,10 @@ const copy = (t) => { navigator.clipboard.writeText(t); ElMessage.success('已�
 const openLink = (u) => window.open(u);
 const playOriginalVideo = (p) => { const v = getOriginalVideos(p); if (v.length > 0) window.open(v[0].url || v[0].backupUrl); };
 
-onMounted(() => fetchList());
+onMounted(() => {
+  fetchList();
+  getPollerStatus();
+});
 </script>
 
 <style scoped>

@@ -16,7 +16,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'run-gemini-restyle-image',
       'run-gemini-restyle-video',
       'run-gemini-undo',
-      'test-video-download'
+      'test-video-download',
+      'video-reproduce-start',
+      'video-reproduce-stop',
+      'video-reproduce-status',
+      'video-reproduce-count'
     ]
     if (!allowedChannels.includes(channel)) {
       throw new Error(`非法 IPC 通道: ${channel}`)
@@ -25,7 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   // 通用 IPC 事件监听（白名单控制）
   on: (channel, callback) => {
-    const allowedChannels = ['scraper-log']
+    const allowedChannels = ['scraper-log', 'video-reproduce-log']
     if (!allowedChannels.includes(channel)) {
       throw new Error(`非法 IPC 监听通道: ${channel}`)
     }

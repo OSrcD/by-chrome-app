@@ -90,6 +90,14 @@ const routes = [
     meta: {
       keepAlive: true // 采集库通常需要缓存
     }
+  },
+  {
+    path: '/video-queue',
+    name: 'VideoQueue',
+    component: () => import('../view/VideoReproduceTask.vue'),
+    meta: {
+      keepAlive: true
+    }
   }
 ]
 export const router = createRouter({

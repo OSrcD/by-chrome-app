@@ -15,6 +15,7 @@ import * as url from "node:url";
 import logger from "./logger/logger";
 import ScraperManager from "./server/service/scraper/ScraperManager.js";
 import ScraperAutomation from "./server/service/scraper/ScraperAutomation.js";
+import VideoReproduceTaskPoller from "./server/service/videoReproduce/VideoReproduceTaskPoller.js";
 
 import WSService from "./server/service/WSService";
 import WindowService from "./server/service/WindowService";
@@ -128,12 +129,39 @@ function createWindow() {
     mainWindow.webContents.send("set-port", portData); // 发送端口
   });
 
+    // Video Reproduce Poller 控制
+    ipcMain.handle("video-reproduce-start", async (_, { port }) => {
+        logger.info(`[Main] 收到指令：启动视频复刻轮询器，端口: ${port}`);
+        VideoReproduceTaskPoller.start(port);
+        return { success: true };
+    });
+
+    ipcMain.handle("video-reproduce-stop", async () => {
+        logger.info(`[Main] 收到指令：停止视频复刻轮询器`);
+        VideoReproduceTaskPoller.stop();
+        return { success: true };
+    });
+
+    ipcMain.handle("video-reproduce-status", async () => {
+        return VideoReproduceTaskPoller.getStatus();
+    });
+
+    ipcMain.handle("video-reproduce-count", async () => {
+        return await VideoReproduceTaskPoller.getPendingCount();
+    });
+
   mainWindow.on("ready-to-show", () => {
     mainWindow.show();
     // 监听采集插件的任务详情日志，并透传给 UI
     ScraperManager.onStepLog = (port, msg, type) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("scraper-log", { port, msg, type });
+      }
+    };
+    // 监听视频复刻自动化轮询器的日志
+    VideoReproduceTaskPoller.onStepLog = (msg, type) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("video-reproduce-log", { msg, type });
       }
     };
   });
@@ -309,6 +337,29 @@ function createWindow() {
     } catch (error) {
         return { success: false, error: error.message };
     }
+  });
+
+  // 视频复刻本地自动化轮询控制
+  ipcMain.handle("start-video-reproduce-poller", async (_, port) => {
+    try {
+        VideoReproduceTaskPoller.start(port);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("stop-video-reproduce-poller", async () => {
+    try {
+        VideoReproduceTaskPoller.stop();
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("status-video-reproduce-poller", async () => {
+    return { isPolling: VideoReproduceTaskPoller.isPolling };
   });
 }
 

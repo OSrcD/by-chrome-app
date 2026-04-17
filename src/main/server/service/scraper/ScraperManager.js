@@ -28,8 +28,8 @@ class ScraperManager {
         ];
 
         // 后端写入接口地址
-        // this.BACKEND_API_URL = 'http://localhost:8080/business/scraper/save';
-        this.BACKEND_API_URL = 'http://admin.ruoyivueplus.wulynk.com:8700/prod-api/business/scraper/save';
+        this.BACKEND_API_URL = 'http://localhost:8080/business/scraper/save';
+        // this.BACKEND_API_URL = 'http://admin.ruoyivueplus.wulynk.com:8700/prod-api/business/scraper/save';
 
         // 维护各个端口的任务状态: running | paused | stopped
         this.taskStates = {};
@@ -120,7 +120,7 @@ class ScraperManager {
     /**
      * 对指定端口的环境执行页面采集
      * @param {string} host 宿主机地址
-     * @param {number} port 调试端口 
+     * @param {number} port 调试端口
      */
     async scrapeCurrentPage(host, port) {
         this.log(port, `[同步触发] 正在分析当前活跃页面的业务解析逻辑...`, 'primary');
@@ -264,7 +264,7 @@ class ScraperManager {
 
     /**
      * 将采集的数据推送到 RuoYi-Vue-Plus 后端保存
-     * @param {Object} data 
+     * @param {Object} data
      */
     async pushToBackend(data) {
         try {

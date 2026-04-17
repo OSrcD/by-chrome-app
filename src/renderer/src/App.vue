@@ -64,6 +64,14 @@
               <span style="font-weight: bold">复刻素材</span>
             </template>
           </el-menu-item>
+          <el-menu-item index="9">
+            <template #default>
+              <el-icon>
+                <VideoCamera />
+              </el-icon>
+              <span style="font-weight: bold">视频队列</span>
+            </template>
+          </el-menu-item>
           <el-menu-item index="7">
             <template #default>
               <el-icon>
@@ -113,7 +121,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { RouterView, useRouter } from "vue-router";
-import { ChromeFilled, SwitchFilled, Platform, Tools, QuestionFilled, List, Connection, Collection, Refresh } from "@element-plus/icons-vue";
+import { ChromeFilled, SwitchFilled, Platform, Tools, QuestionFilled, List, Connection, Collection, Refresh, VideoCamera } from "@element-plus/icons-vue";
 import { AestheticFluidBg } from "./utils/AestheticFluidBg.module.js";
 import axios from "axios";
 
@@ -170,6 +178,9 @@ const handleSelect = (index, indexPath) => {
       break;
     case "8":
       router.push("/library");
+      break;
+    case "9":
+      router.push("/video-queue");
       break;
     default:
       break;
